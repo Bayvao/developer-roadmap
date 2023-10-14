@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useState } from 'react';
 import { httpDelete, httpGet, httpPatch } from '../../lib/http';
 import { useAuth } from '../../hooks/use-auth';
 import { pageProgressMessage } from '../../stores/page';
@@ -9,7 +9,7 @@ import type { AllowedMemberStatus } from '../TeamDropdown/TeamDropdown';
 import { InviteMemberPopup } from './InviteMemberPopup';
 import { getUrlParams } from '../../lib/browser';
 import { UpdateMemberPopup } from './UpdateMemberPopup';
-import { useStore } from '@nanostores/preact';
+import { useStore } from '@nanostores/react';
 import { $canManageCurrentTeam } from '../../stores/team';
 import { useToast } from '../../hooks/use-toast';
 import { TeamMemberItem } from './TeamMemberItem';
@@ -43,6 +43,8 @@ export interface TeamMemberItem extends TeamMemberDocument {
   avatar: string;
   hasProgress: boolean;
 }
+
+const MAX_MEMBER_COUNT = 100;
 
 export function TeamMembersPage() {
   const { t: teamId } = getUrlParams();
@@ -307,7 +309,7 @@ export function TeamMembersPage() {
       {canManageCurrentTeam && (
         <div className="mt-4">
           <button
-            disabled={teamMembers.length >= 25}
+            disabled={teamMembers.length >= MAX_MEMBER_COUNT}
             onClick={() => setIsInvitingMember(true)}
             className="block w-full rounded-md border border-dashed border-gray-300 py-2 text-sm transition-colors hover:border-gray-600 hover:bg-gray-50 focus:outline-0"
           >
@@ -316,7 +318,7 @@ export function TeamMembersPage() {
         </div>
       )}
 
-      {teamMembers.length >= 25 && canManageCurrentTeam && (
+      {teamMembers.length >= MAX_MEMBER_COUNT && canManageCurrentTeam && (
         <p className="mt-2 rounded-lg bg-red-100 p-2 text-red-700">
           You have reached the maximum number of members in a team. Please reach
           out to us if you need more.

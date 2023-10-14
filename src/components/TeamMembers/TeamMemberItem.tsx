@@ -3,7 +3,7 @@ import { MemberActionDropdown } from './MemberActionDropdown';
 import { MemberRoleBadge } from './RoleBadge';
 import type { TeamMemberItem } from './TeamMembersPage';
 import { $canManageCurrentTeam } from '../../stores/team';
-import { useStore } from '@nanostores/preact';
+import { useStore } from '@nanostores/react';
 
 type TeamMemberProps = {
   member: TeamMemberItem;
@@ -91,7 +91,7 @@ export function TeamMemberItem(props: TeamMemberProps) {
       </div>
 
       <div className="flex shrink-0 items-center text-sm">
-        <span class={'hidden sm:block'}>
+        <span className={'hidden sm:block'}>
           <MemberRoleBadge role={member.role} />
         </span>
         {canManageCurrentTeam && (
@@ -108,23 +108,5 @@ export function TeamMemberItem(props: TeamMemberProps) {
         )}
       </div>
     </div>
-  );
-}
-
-type SendProgressReminderProps = {
-  handleSendReminder: () => void;
-};
-
-function SendProgressReminder(props: SendProgressReminderProps) {
-  const { handleSendReminder } = props;
-
-  return (
-    <button
-      onClick={handleSendReminder}
-      className="ml-2 flex items-center gap-1.5 whitespace-nowrap rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-700"
-    >
-      <MailIcon className="h-3 w-3" />
-      <span>Remind</span>
-    </button>
   );
 }

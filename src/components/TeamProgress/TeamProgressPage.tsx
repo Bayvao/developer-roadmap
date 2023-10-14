@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'preact/hooks';
-import { useTeamId } from '../../hooks/use-team-id';
+import { useEffect, useState } from 'react';
 import { httpGet } from '../../lib/http';
 import { pageProgressMessage } from '../../stores/page';
 import { MemberProgressItem } from './MemberProgressItem';
 import { useToast } from '../../hooks/use-toast';
-import { useStore } from '@nanostores/preact';
+import { useStore } from '@nanostores/react';
 import { $currentTeam } from '../../stores/team';
 import { GroupRoadmapItem } from './GroupRoadmapItem';
 import { getUrlParams, setUrlParams } from '../../lib/browser';
@@ -21,6 +20,7 @@ export type UserProgress = {
   skipped: number;
   total: number;
   updatedAt: string;
+  isCustomResource?: boolean;
 };
 
 export type TeamMember = {
@@ -37,6 +37,7 @@ export type GroupByRoadmap = {
   resourceId: string;
   resourceTitle: string;
   resourceType: string;
+  isCustomResource?: boolean;
   members: {
     member: TeamMember;
     progress: UserProgress | undefined;
@@ -49,8 +50,7 @@ const groupingTypes = [
 ] as const;
 
 export function TeamProgressPage() {
-  const { teamId } = useTeamId();
-  const { gb: groupBy } = getUrlParams();
+  const { t: teamId, gb: groupBy } = getUrlParams();
 
   const [isLoading, setIsLoading] = useState(true);
   const toast = useToast();
@@ -60,6 +60,7 @@ export function TeamProgressPage() {
   const [showMemberProgress, setShowMemberProgress] = useState<{
     resourceId: string;
     member: TeamMember;
+    isCustomResource?: boolean;
   }>();
 
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -100,15 +101,6 @@ export function TeamProgressPage() {
     });
   }, [teamId]);
 
-  if (isLoading) {
-    return null;
-  }
-
-  if (!teamId) {
-    window.location.href = '/';
-    return;
-  }
-
   useEffect(() => {
     if (!selectedGrouping) {
       return;
@@ -119,6 +111,7 @@ export function TeamProgressPage() {
 
   const groupByRoadmap: GroupByRoadmap[] = [];
   for (const roadmap of currentTeam?.roadmaps || []) {
+    let isCustomResource = false;
     const members: GroupByRoadmap['members'] = [];
     for (const member of teamMembers) {
       const progress = member.progress.find(
@@ -127,6 +120,10 @@ export function TeamProgressPage() {
       if (!progress) {
         continue;
       }
+      if (progress.isCustomResource && !isCustomResource) {
+        isCustomResource = true;
+      }
+
       members.push({
         member,
         progress,
@@ -142,7 +139,17 @@ export function TeamProgressPage() {
       resourceTitle: members?.[0].progress?.resourceTitle || '',
       resourceType: 'roadmap',
       members,
+      isCustomResource,
     });
+  }
+
+  if (!teamId) {
+    window.location.href = '/';
+    return;
+  }
+
+  if (isLoading) {
+    return null;
   }
 
   return (
@@ -153,6 +160,7 @@ export function TeamProgressPage() {
           teamId={teamId}
           resourceId={showMemberProgress.resourceId}
           resourceType={'roadmap'}
+          isCustomResource={showMemberProgress.isCustomResource}
           onClose={() => {
             setShowMemberProgress(undefined);
           }}
@@ -162,6 +170,7 @@ export function TeamProgressPage() {
               member: teamMembers.find(
                 (member) => member.email === user?.email
               )!,
+              isCustomResource: showMemberProgress.isCustomResource,
             });
           }}
         />
@@ -170,6 +179,7 @@ export function TeamProgressPage() {
       <div className="flex items-center gap-2">
         {groupingTypes.map((grouping) => (
           <button
+            key={grouping.value}
             className={`rounded-md border p-1 px-2 text-sm ${
               selectedGrouping === grouping.value
                 ? ' border-gray-400 bg-gray-200 '
@@ -194,6 +204,7 @@ export function TeamProgressPage() {
                     setShowMemberProgress({
                       resourceId,
                       member,
+                      isCustomResource: roadmap.isCustomResource,
                     });
                   }}
                 />
@@ -205,12 +216,14 @@ export function TeamProgressPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             {teamMembers.map((member) => (
               <MemberProgressItem
+                key={member._id}
                 member={member}
                 isMyProgress={member?.email === user?.email}
-                onShowResourceProgress={(resourceId) => {
+                onShowResourceProgress={(resourceId, isCustomResource) => {
                   setShowMemberProgress({
                     resourceId,
                     member,
+                    isCustomResource,
                   });
                 }}
               />

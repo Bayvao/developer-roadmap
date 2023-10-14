@@ -1,15 +1,13 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'react';
 import { wireframeJSONToSVG } from 'roadmap-renderer';
 import { Spinner } from '../ReactIcons/Spinner';
-import { httpGet, httpPut } from '../../lib/http';
+import { httpPut } from '../../lib/http';
 import { renderTopicProgress } from '../../lib/resource-progress';
 import '../FrameRenderer/FrameRenderer.css';
 import { useOutsideClick } from '../../hooks/use-outside-click';
 import { useKeydown } from '../../hooks/use-keydown';
 import type { TeamResourceConfig } from './RoadmapSelector';
 import { useToast } from '../../hooks/use-toast';
-import { useStore } from '@nanostores/preact';
-import { $currentTeam } from '../../stores/team';
 
 export type ProgressMapProps = {
   teamId: string;
@@ -40,8 +38,6 @@ export function UpdateTeamResourceModal(props: ProgressMapProps) {
   const [removedItems, setRemovedItems] =
     useState<string[]>(defaultRemovedItems);
 
-  const currentTeam = useStore($currentTeam);
-
   useEffect(() => {
     function onTopicClick(e: any) {
       const groupEl = e.target.closest('.clickable-group');
@@ -69,7 +65,9 @@ export function UpdateTeamResourceModal(props: ProgressMapProps) {
     };
   }, [removedItems]);
 
-  let resourceJsonUrl = 'https://roadmap.sh';
+  let resourceJsonUrl = import.meta.env.DEV
+    ? 'http://localhost:3000'
+    : 'https://roadmap.sh';
   if (resourceType === 'roadmap') {
     resourceJsonUrl += `/${resourceId}.json`;
   } else {
@@ -148,16 +146,12 @@ export function UpdateTeamResourceModal(props: ProgressMapProps) {
   }, []);
 
   return (
-    <div class="fixed left-0 right-0 top-0 z-50 h-full items-center justify-center overflow-y-auto overflow-x-hidden overscroll-contain bg-black/50">
-      <div class="relative mx-auto h-full w-full max-w-4xl p-4 md:h-auto">
+    <div className="fixed left-0 right-0 top-0 z-50 h-full items-center justify-center overflow-y-auto overflow-x-hidden overscroll-contain bg-black/50">
+      <div className="relative mx-auto h-full w-full max-w-4xl p-4 md:h-auto">
         <div
-          id={
-            currentTeam?.type === 'company'
-              ? 'customized-roadmap'
-              : 'original-roadmap'
-          }
+          id={'customized-roadmap'}
           ref={popupBodyEl}
-          class="popup-body relative rounded-lg bg-white shadow"
+          className="popup-body relative rounded-lg bg-white shadow"
         >
           <div
             className={
@@ -201,7 +195,7 @@ export function UpdateTeamResourceModal(props: ProgressMapProps) {
           <div id="resource-svg-wrap" ref={containerEl} className="px-4"></div>
 
           {isLoading && (
-            <div class="flex w-full justify-center">
+            <div className="flex w-full justify-center">
               <Spinner
                 isDualRing={false}
                 className="mb-4 mt-2 h-4 w-4 animate-spin fill-blue-600 text-gray-200 sm:h-8 sm:w-8"

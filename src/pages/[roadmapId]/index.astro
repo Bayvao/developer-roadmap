@@ -13,7 +13,7 @@ import {
   generateArticleSchema,
   generateFAQSchema,
 } from '../../lib/jsonld-schema';
-import { RoadmapFrontmatter, getRoadmapIds } from '../../lib/roadmap';
+import { type RoadmapFrontmatter, getRoadmapIds } from '../../lib/roadmap';
 
 export async function getStaticPaths() {
   const roadmapIds = await getRoadmapIds();
@@ -86,17 +86,18 @@ if (roadmapFAQs.length) {
     roadmapId={roadmapId}
     hasTopics={roadmapData.hasTopics}
     isUpcoming={roadmapData.isUpcoming}
+    question={roadmapData.question}
   />
 
   <div class='bg-gray-50 pt-4 sm:pt-12'>
     {
       !roadmapData.isUpcoming && roadmapData.briefTitle !== 'Android' && (
-        <div class='container relative max-w-[1000px]'>
+        <div class='container relative !max-w-[1000px]'>
           <ShareIcons
             description={roadmapData.briefDescription}
             pageUrl={`https://roadmap.sh/${roadmapId}`}
           />
-          <TopicDetail client:idle />
+          <TopicDetail client:idle canSubmitContribution={true} />
 
           <FrameRenderer
             resourceType={'roadmap'}
@@ -121,7 +122,7 @@ if (roadmapFAQs.length) {
     <UserProgressModal
       resourceId={roadmapId}
       resourceType='roadmap'
-      client:only
+      client:only='react'
     />
 
     <FAQs faqs={roadmapFAQs} />

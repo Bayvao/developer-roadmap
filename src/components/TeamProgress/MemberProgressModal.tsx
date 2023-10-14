@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'react';
 import { wireframeJSONToSVG } from 'roadmap-renderer';
 import { Spinner } from '../ReactIcons/Spinner';
 import '../FrameRenderer/FrameRenderer.css';
@@ -8,16 +8,21 @@ import type { TeamMember } from './TeamProgressPage';
 import { httpGet } from '../../lib/http';
 import {
   renderTopicProgress,
-  ResourceProgressType,
-  ResourceType,
+  type ResourceProgressType,
+  type ResourceType,
   updateResourceProgress,
 } from '../../lib/resource-progress';
 import CloseIcon from '../../icons/close.svg';
 import { useToast } from '../../hooks/use-toast';
 import { useAuth } from '../../hooks/use-auth';
 import { pageProgressMessage } from '../../stores/page';
-import { useStore } from '@nanostores/preact';
+import { useStore } from '@nanostores/react';
 import { $currentTeam } from '../../stores/team';
+import { renderFlowJSON } from '../../../renderer/renderer';
+import {
+  allowedClickableNodeTypes,
+  getNodeDetails,
+} from '../CustomRoadmap/RoadmapRenderer';
 
 export type ProgressMapProps = {
   member: TeamMember;
@@ -26,6 +31,7 @@ export type ProgressMapProps = {
   resourceType: 'roadmap' | 'best-practice';
   onClose: () => void;
   onShowMyProgress: () => void;
+  isCustomResource?: boolean;
 };
 
 type MemberProgressResponse = {
@@ -43,10 +49,10 @@ export function MemberProgressModal(props: ProgressMapProps) {
     onShowMyProgress,
     teamId,
     onClose,
+    isCustomResource,
   } = props;
   const user = useAuth();
   const isCurrentUser = user?.email === member.email;
-  const currentTeam = useStore($currentTeam);
 
   const containerEl = useRef<HTMLDivElement>(null);
   const popupBodyEl = useRef<HTMLDivElement>(null);
@@ -62,6 +68,12 @@ export function MemberProgressModal(props: ProgressMapProps) {
     resourceJsonUrl += `/${resourceId}.json`;
   } else {
     resourceJsonUrl += `/best-practices/${resourceId}.json`;
+  }
+
+  if (isCustomResource) {
+    resourceJsonUrl = `${
+      import.meta.env.PUBLIC_API_URL
+    }/v1-get-roadmap/${resourceId}`;
   }
 
   async function getMemberProgress(
@@ -86,11 +98,28 @@ export function MemberProgressModal(props: ProgressMapProps) {
   }
 
   async function renderResource(jsonUrl: string) {
-    const res = await fetch(jsonUrl);
-    const json = await res.json();
-    const svg = await wireframeJSONToSVG(json, {
-      fontURL: '/fonts/balsamiq.woff2',
+    const res = await fetch(jsonUrl, {
+      ...(isCustomResource && {
+        credentials: 'include',
+      }),
     });
+    const json = await res.json();
+    let svg: SVGElement | null = null;
+    if (isCustomResource) {
+      svg = await renderFlowJSON(
+        {
+          nodes: json.nodes,
+          edges: json.edges,
+        },
+        {
+          fontURL: '/fonts/balsamiq.woff2',
+        }
+      );
+    } else {
+      svg = await wireframeJSONToSVG(json, {
+        fontURL: '/fonts/balsamiq.woff2',
+      });
+    }
 
     containerEl.current?.replaceChildren(svg);
   }
@@ -186,9 +215,28 @@ export function MemberProgressModal(props: ProgressMapProps) {
       return;
     }
 
-    const groupId = targetGroup.dataset ? targetGroup.dataset.groupId : '';
-    if (!groupId) {
-      return;
+    let topicId = '';
+    if (isCustomResource) {
+      const { nodeId, nodeType } = getNodeDetails(e.target as SVGElement) || {};
+      if (
+        !nodeId ||
+        !nodeType ||
+        !allowedClickableNodeTypes.includes(nodeType)
+      ) {
+        return;
+      }
+
+      if (nodeType === 'button') {
+        return;
+      }
+
+      topicId = nodeId;
+    } else {
+      const groupId = targetGroup.dataset ? targetGroup.dataset.groupId : '';
+      if (!groupId) {
+        return;
+      }
+      topicId = groupId.replace(/^\d+-/, '');
     }
 
     if (targetGroup.classList.contains('removed')) {
@@ -197,13 +245,9 @@ export function MemberProgressModal(props: ProgressMapProps) {
     }
 
     e.preventDefault();
-    const isCurrentStatusDone = targetGroup.classList.contains('done');
-    const normalizedGroupId = groupId.replace(/^\d+-/, '');
+    const isCurrentStatusDone = targetGroup?.classList.contains('done');
 
-    updateTopicStatus(
-      normalizedGroupId,
-      !isCurrentStatusDone ? 'done' : 'pending'
-    );
+    updateTopicStatus(topicId, !isCurrentStatusDone ? 'done' : 'pending');
   }
 
   async function handleClick(e: MouseEvent) {
@@ -211,9 +255,28 @@ export function MemberProgressModal(props: ProgressMapProps) {
     if (!targetGroup) {
       return;
     }
-    const groupId = targetGroup.dataset ? targetGroup.dataset.groupId : '';
-    if (!groupId) {
-      return;
+    let topicId = '';
+    if (isCustomResource) {
+      const { nodeId, nodeType } = getNodeDetails(e.target as SVGElement) || {};
+      if (
+        !nodeId ||
+        !nodeType ||
+        !allowedClickableNodeTypes.includes(nodeType)
+      ) {
+        return;
+      }
+
+      if (nodeType === 'button') {
+        return;
+      }
+
+      topicId = nodeId;
+    } else {
+      const groupId = targetGroup.dataset ? targetGroup.dataset.groupId : '';
+      if (!groupId) {
+        return;
+      }
+      topicId = groupId.replace(/^\d+-/, '');
     }
 
     if (targetGroup.classList.contains('removed')) {
@@ -221,15 +284,13 @@ export function MemberProgressModal(props: ProgressMapProps) {
     }
 
     e.preventDefault();
-    const normalizedGroupId = groupId.replace(/^\d+-/, '');
-
     const isCurrentStatusLearning = targetGroup.classList.contains('learning');
     const isCurrentStatusSkipped = targetGroup.classList.contains('skipped');
 
     if (e.shiftKey) {
       e.preventDefault();
       updateTopicStatus(
-        normalizedGroupId,
+        topicId,
         !isCurrentStatusLearning ? 'learning' : 'pending'
       );
       return;
@@ -238,7 +299,7 @@ export function MemberProgressModal(props: ProgressMapProps) {
     if (e.altKey) {
       e.preventDefault();
       updateTopicStatus(
-        normalizedGroupId,
+        topicId,
         !isCurrentStatusSkipped ? 'skipped' : 'pending'
       );
 
@@ -277,14 +338,14 @@ export function MemberProgressModal(props: ProgressMapProps) {
   const progressPercentage = Math.round((memberDone / memberTotal) * 100);
 
   return (
-    <div class="fixed left-0 right-0 top-0 z-50 h-full items-center justify-center overflow-y-auto overflow-x-hidden overscroll-contain bg-black/50">
+    <div className="fixed left-0 right-0 top-0 z-50 h-full items-center justify-center overflow-y-auto overflow-x-hidden overscroll-contain bg-black/50">
       <div
-        id={currentTeam?.type === 'company' ? 'customized-roadmap' : 'original-roadmap'}
-        class="relative mx-auto h-full w-full max-w-4xl p-4 md:h-auto"
+        id={isCustomResource ? 'original-roadmap' : 'customized-roadmap'}
+        className="relative mx-auto h-full w-full max-w-4xl p-4 md:h-auto"
       >
         <div
           ref={popupBodyEl}
-          class="popup-body relative rounded-lg bg-white pt-[1px] shadow"
+          className="popup-body relative rounded-lg bg-white pt-[1px] shadow"
         >
           {isCurrentUser && (
             <div className="sticky top-1 mx-1 mb-0 mt-1 rounded-xl bg-gray-900 p-4 text-gray-300">
@@ -344,11 +405,11 @@ export function MemberProgressModal(props: ProgressMapProps) {
               </div>
             )}
             <p
-              class={`-mx-4 mb-3 flex items-center justify-start border-b border-t px-4 py-2 text-sm sm:hidden ${
+              className={`-mx-4 mb-3 flex items-center justify-start border-b border-t px-4 py-2 text-sm sm:hidden ${
                 isLoading ? 'striped-loader' : ''
               }`}
             >
-              <span class="mr-2.5 block rounded-sm bg-yellow-200 px-1 py-0.5 text-xs font-medium uppercase text-yellow-900">
+              <span className="mr-2.5 block rounded-sm bg-yellow-200 px-1 py-0.5 text-xs font-medium uppercase text-yellow-900">
                 <span>{progressPercentage}</span>% Done
               </span>
 
@@ -357,18 +418,18 @@ export function MemberProgressModal(props: ProgressMapProps) {
               </span>
             </p>
             <p
-              class={`-mx-4 mb-3 hidden items-center justify-center border-b border-t py-2 text-sm sm:flex ${
+              className={`-mx-4 mb-3 hidden items-center justify-center border-b border-t py-2 text-sm sm:flex ${
                 isLoading ? 'striped-loader' : ''
               }`}
             >
-              <span class="mr-2.5 block rounded-sm bg-yellow-200 px-1 py-0.5 text-xs font-medium uppercase text-yellow-900">
+              <span className="mr-2.5 block rounded-sm bg-yellow-200 px-1 py-0.5 text-xs font-medium uppercase text-yellow-900">
                 <span>{progressPercentage}</span>% Done
               </span>
 
               <span>
                 <span>{memberDone}</span> completed
               </span>
-              <span class="mx-1.5 text-gray-400">·</span>
+              <span className="mx-1.5 text-gray-400">·</span>
               <span>
                 <span data-progress-learning="">{memberLearning}</span> in
                 progress
@@ -376,7 +437,7 @@ export function MemberProgressModal(props: ProgressMapProps) {
 
               {memberSkipped > 0 && (
                 <>
-                  <span class="mx-1.5 text-gray-400">·</span>
+                  <span className="mx-1.5 text-gray-400">·</span>
                   <span>
                     <span data-progress-skipped="">{memberSkipped}</span>{' '}
                     skipped
@@ -384,7 +445,7 @@ export function MemberProgressModal(props: ProgressMapProps) {
                 </>
               )}
 
-              <span class="mx-1.5 text-gray-400">·</span>
+              <span className="mx-1.5 text-gray-400">·</span>
               <span>
                 <span data-progress-total="">{memberTotal}</span> Total
               </span>
@@ -392,13 +453,13 @@ export function MemberProgressModal(props: ProgressMapProps) {
           </div>
 
           <div
-            id="resource-svg-wrap"
+            id={'resource-svg-wrap'}
             ref={containerEl}
             className="px-4 pb-2"
           ></div>
 
           {isLoading && (
-            <div class="flex w-full justify-center">
+            <div className="flex w-full justify-center">
               <Spinner
                 isDualRing={false}
                 className="mb-4 mt-2 h-4 w-4 animate-spin fill-blue-600 text-gray-200 sm:h-8 sm:w-8"
@@ -413,8 +474,8 @@ export function MemberProgressModal(props: ProgressMapProps) {
             }`}
             onClick={onClose}
           >
-            <img alt={'close'} src={CloseIcon} className="h-4 w-4" />
-            <span class="sr-only">Close modal</span>
+            <img alt={'close'} src={CloseIcon.src} className="h-4 w-4" />
+            <span className="sr-only">Close modal</span>
           </button>
         </div>
       </div>

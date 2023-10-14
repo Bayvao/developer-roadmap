@@ -2,12 +2,9 @@ import Cookies from 'js-cookie';
 import { TOKEN_COOKIE_NAME } from '../../lib/jwt';
 
 export function logout() {
-  Cookies.remove(TOKEN_COOKIE_NAME);
-
-  // @FIXME: fix the domain name in the cookie created by the API
   Cookies.remove(TOKEN_COOKIE_NAME, {
     path: '/',
-    domain: 'api.roadmap.sh',
+    domain: import.meta.env.DEV ? 'localhost' : '.roadmap.sh',
   });
 
   // Reloading will automatically redirect the user if required
@@ -22,6 +19,8 @@ function bindEvents() {
       ...target.closest('button')?.dataset,
     };
 
+    const accountDropdown = document.querySelector('[data-account-dropdown]');
+
     // If the user clicks on the logout button, remove the token cookie
     if (dataset.logoutButton !== undefined) {
       e.preventDefault();
@@ -30,6 +29,12 @@ function bindEvents() {
       document.querySelector('[data-mobile-nav]')?.classList.remove('hidden');
     } else if (dataset.closeMobileNav !== undefined) {
       document.querySelector('[data-mobile-nav]')?.classList.add('hidden');
+    } else if (
+      accountDropdown &&
+      !target?.closest('[data-account-dropdown]') &&
+      !accountDropdown.classList.contains('hidden')
+    ) {
+      accountDropdown.classList.add('hidden');
     }
   });
 
